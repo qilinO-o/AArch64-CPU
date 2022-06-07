@@ -36,6 +36,8 @@ module decode
     assign op2 = dataF.instr[31:25];
     
     always_comb begin
+        //if(dataF.pc != '0) $display("%x %x",dataF.pc,dataF.instr);
+        dataD.csr_ctrl = '0;
         unique case(op)
             F7_ADDI: begin
                 unique case(func)
@@ -361,12 +363,133 @@ module decode
                 branch=1;
                 //$display("JALR!");
             end
+            F7_CSR: begin
+                unique case(func)
+                    F3_CSRRW: begin
+                        imm=0;
+                        im_ext=EXT_CSR;
+                        branch=0;
+                        dataD.csr_ctrl.wvalid = 1'b1;
+                        dataD.csr_ctrl.wa = csr_ra;
+                        dataD.csr_ctrl.wd = srca;
+                        dataD.csr_ctrl.is_mret = 1'b0;
+                    end
+                    F3_CSRRS: begin
+                        imm=0;
+                        im_ext=EXT_CSR;
+                        branch=0;
+                        dataD.csr_ctrl.wvalid = 1'b1;
+                        dataD.csr_ctrl.wa = csr_ra;
+                        dataD.csr_ctrl.wd = csr_rd | srca;
+                        dataD.csr_ctrl.is_mret = 1'b0;
+                    end
+                    F3_CSRRC: begin
+                        imm=0;
+                        im_ext=EXT_CSR;
+                        branch=0;
+                        dataD.csr_ctrl.wvalid = 1'b1;
+                        dataD.csr_ctrl.wa = csr_ra;
+                        dataD.csr_ctrl.wd = csr_rd & ~srca;
+                        dataD.csr_ctrl.is_mret = 1'b0;
+                    end
+                    F3_CSRRWI: begin
+                        imm=0;
+                        im_ext=EXT_CSR;
+                        branch=0;
+                        dataD.csr_ctrl.wvalid = 1'b1;
+                        dataD.csr_ctrl.wa = csr_ra;
+                        dataD.csr_ctrl.wd = {{59{1'b0}},dataF.instr[19:15]};
+                        dataD.csr_ctrl.is_mret = 1'b0;
+                    end
+                    F3_CSRRSI: begin
+                        imm=0;
+                        im_ext=EXT_CSR;
+                        branch=0;
+                        dataD.csr_ctrl.wvalid = 1'b1;
+                        dataD.csr_ctrl.wa = csr_ra;
+                        dataD.csr_ctrl.wd = csr_rd | {{59{1'b0}},dataF.instr[19:15]};
+                        dataD.csr_ctrl.is_mret = 1'b0;
+                    end
+                    F3_CSRRCI: begin
+                        imm=0;
+                        im_ext=EXT_CSR;
+                        branch=0;
+                        dataD.csr_ctrl.wvalid = 1'b1;
+                        dataD.csr_ctrl.wa = csr_ra;
+                        dataD.csr_ctrl.wd = csr_rd & ~{{59{1'b0}},dataF.instr[19:15]};
+                        dataD.csr_ctrl.is_mret = 1'b0;
+                    end
+                    F3_MRET: begin
+                        
+                        unique case(op2)
+                            F7_MRET_2: begin
+                                imm=0;
+                                im_ext=EXT_NULL;
+                                branch=0;
+                                dataD.csr_ctrl.wvalid = 1'b0;
+                                dataD.csr_ctrl.wa = '0;
+                                dataD.csr_ctrl.wd = '0;
+                                dataD.csr_ctrl.is_mret = 1'b1;
+                            end
+                            F7_ECALL_2: begin
+                                imm=0;
+                                im_ext=EXT_NULL;
+                                branch=0;
+                                dataD.csr_ctrl.wvalid = 1'b0;
+                                dataD.csr_ctrl.wa = '0;
+                                dataD.csr_ctrl.wd = '0;
+                                dataD.csr_ctrl.is_ecall = 1'b1;
+                                //if(dataF.pc == 64'h8000600c) $display("in csr");
+                            end
+                            default: begin
+                            end
+                        endcase
+                    end
+                    default: begin
+
+                    end
+                endcase
+            end
             default:begin
                 imm=0;
                 im_ext=EXT_NULL;
                 branch=0;
             end
         endcase
+        
+        dataD.except = dataF.except;
+        if (dataF.instr == 32'h5006b) begin
+            //$display("jump");
+        end 
+        else begin
+            if(dataF.except.exception) begin
+                dataD.except = dataF.except;
+            end
+            else begin
+                if((dataF.valid) && (op_t == UNKNOWN)) begin
+                    dataD.except.exception = 1'b1;
+                    dataD.except.exception_code = 5'd2;
+                end
+                else if(dataD.csr_ctrl.is_ecall) begin
+                    dataD.except.exception = 1'b1;
+                    if(mode == 2'b11) begin //machine
+                        dataD.except.exception_code = 5'd11;
+                    end
+                    else if(mode == 2'b01) begin //supervisor
+                        dataD.except.exception_code = 5'd9;
+                    end
+                    else if(mode == 2'b00) begin //user
+                        dataD.except.exception_code = 5'd8;
+                    end
+                    else dataD.except.exception_code = '1;
+                end
+                else begin
+                    dataD.except.exception = 1'b0;
+                    dataD.except.exception_code = '1;
+                end
+            end
+        end
+        
     end
     control control(
         op,
@@ -422,6 +545,8 @@ module decode
     assign dataD.instr=dataF.instr;
     assign dataD.pc=dataF.pc;
     assign dataD.valid=dataF.valid;
+    
+
 
 endmodule
 `endif

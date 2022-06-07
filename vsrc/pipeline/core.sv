@@ -58,6 +58,28 @@ module core
 	word_t srcb_hE;
 	word_t srca_hD;
 	word_t srcb_hD;
+	//csr
+	csr_addr_t csr_ra;
+	word_t csr_rd;
+	addr_t csr_pcselect;
+
+	//csr stall
+	u1 stallF;
+	u1 stallD;
+	u1 stallE;
+	u1 stallM;
+	u1 stallW;
+	u1 stall;
+	u1 flush;
+	u1 flush_all;
+
+	assign stallF = hazard_ctrl.stallF | stallD | (dataD.except.exception | dataD.csr_ctrl.wvalid | dataD.csr_ctrl.is_mret);
+	assign stallD = hazard_ctrl.stallD | stallE | (dataE.except.exception | dataE.csr_ctrl.wvalid | dataE.csr_ctrl.is_mret);
+	assign stallE = hazard_ctrl.stallE | stallM | (dataM.except.exception | dataM.csr_ctrl.wvalid | dataM.csr_ctrl.is_mret);
+	assign stallM = hazard_ctrl.stallM | stallW;
+	assign stallW = hazard_ctrl.stallW | stall;
+	assign stall = dataW.except.exception | dataW.csr_ctrl.wvalid | dataW.csr_ctrl.is_mret;
+	assign flush_all = (csr.interruption | stall) & ~hazard_ctrl.flushF & ~hazard_ctrl.flushW & (dataW.pc != '0);
 
 	hazard hazard_hazard(
 		op_t,
@@ -75,36 +97,44 @@ module core
 		srca,
 		srcb,
 		stallE_mult,
+		//flush_csr,
     	hazard_ctrl,
 		srca_hE,
 		srcb_hE,
 		srca_hD,
 		srcb_hD
+		//flush_all
 	);
 	//fetch
     pc pc_pc(
-		~hazard_ctrl.stallF,
-        clk,reset,
-        branch | branch_nxt,
-        pcbranch | pcbranch_nxt,
-		iresp,
-		temp_pc,
-        dataF
+		.en(~stallF),
+        .clk,
+		.reset,
+		.flush(flush_all),
+		.pcselect(csr_pcselect),
+        .branch(branch | branch_nxt),
+        .pcbranch(pcbranch | pcbranch_nxt),
+		.iresp,
+		.ireq,
+        .dataF
     );
-	assign ireq.addr=temp_pc;
-	assign ireq.valid=1;
+	//assign ireq.addr = temp_pc;
+	//assign ireq.valid = 1;
     //IF/ID reg
     IFID_reg IFID_reg_IFID_reg(
-		~hazard_ctrl.stallD,
-		clk,reset,branch_nxt | branch,hazard_ctrl.flushF,
-		dataF,
-		dataF_nxt
+		.en(~stallD),
+		.clk,
+		.rst(reset | flush_all),
+		.clr(branch_nxt | branch),
+		.flush(hazard_ctrl.flushF),
+		.dataF,
+		.dataF_nxt
 	);
 	
 	always_ff @(posedge clk)
 	begin
-		if(~hazard_ctrl.stallD) begin
-			if(reset | (branch_nxt & iresp.data_ok) | (branch & iresp.data_ok)) begin
+		if(~stallD) begin
+			if((reset | flush_all) | (branch_nxt & iresp.data_ok) | (branch & iresp.data_ok)) begin
 				branch_nxt <= '0;
 				pcbranch_nxt <= '0;
 			end
@@ -131,8 +161,10 @@ module core
 	);
     //ID/Ex reg
 	IDEX_reg IDEX_reg_IDEX_reg(
-		~hazard_ctrl.stallE,
-		clk,reset,hazard_ctrl.flushD,
+		~stallE,
+		clk,
+		reset | flush_all,
+		hazard_ctrl.flushD,
 		dataD,
 		dataD_nxt
 	);
@@ -147,14 +179,17 @@ module core
 	);
     //Ex/Mem reg
 	EXMEM_reg EXMEM_reg_EXMEM_reg(
-		~hazard_ctrl.stallM,
-		clk,reset,hazard_ctrl.flushE,
+		~stallM,
+		clk,
+		reset | flush_all,
+		hazard_ctrl.flushE,
 		dataE,
 		dataE_nxt
 	);
 	//assign aluout_back=dataE.aluout;//forward
     //Data Memory
 	memory memory_memory(
+		stall,
 		dataE_nxt,
 		dreq,
 		dresp,
@@ -162,8 +197,10 @@ module core
 	);
     //Mem/Wr reg
 	MEMWR_reg MEMWR_reg_MEMWR_reg(
-		~hazard_ctrl.stallW,
-		clk,reset,hazard_ctrl.flushW,
+		~stallW,
+		clk,
+		reset | flush_all,
+		hazard_ctrl.flushW,
 		dataM,
 		dataM_nxt
 	);
@@ -183,6 +220,19 @@ module core
 		.wvalid(dataW.regwrite),
 		.wa(dataW.dst),//write addr
 		.wd(dataW.resultw)//write data
+	);
+
+	//csr
+	csr csr(
+		.clk, .reset,
+		.csr_ra(csr_ra),
+		.csr_ctrl(dataW.csr_ctrl),
+		.except(dataW.except),
+		.pc(dataW.pc),
+		.trint, .swint, .exint,
+		.stall((ireq.valid && ~iresp.data_ok) | (dreq.valid && ~dresp.data_ok)),
+		.csr_rd(csr_rd),
+		.csr_pcselect(csr_pcselect)
 	);
 
 `ifdef VERILATOR

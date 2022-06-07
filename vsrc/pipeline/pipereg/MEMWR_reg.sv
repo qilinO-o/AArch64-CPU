@@ -13,19 +13,24 @@ module MEMWR_reg
     (
     input logic en,
     input logic clk,rst,clr,
+    //input u1 flush_all,
     input memory_data_t dataM,
     output memory_data_t dataM_nxt
 );
     always_ff@(posedge clk )//or posedge rst)
     begin
-        if(en == 1'b1) begin
-            if(rst | clr) dataM_nxt<='0;
-            else dataM_nxt<=dataM;
-        end
-        else begin
-            dataM_nxt.valid <= 0;
-            
+        if(rst) begin
+            dataM_nxt<='0;
         end 
+        else begin
+            if(en == 1'b1) begin
+                if(clr) dataM_nxt<='0;
+                else dataM_nxt<=dataM;
+            end
+            else begin
+                dataM_nxt.valid <= 0;
+            end
+        end
     end
 
 endmodule

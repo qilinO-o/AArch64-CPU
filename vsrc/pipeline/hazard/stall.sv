@@ -26,7 +26,8 @@ module stall
     input u1 memE,
     input u1 memtoregM,
     input u1 stallE_mult,
-    
+    //input u1 flush_csr,
+
     output u1 stallF,
 	output u1 stallD,
     output u1 stallE,
@@ -35,10 +36,13 @@ module stall
     output u1 flushF,
     output u1 flushD,
 	output u1 flushE,
-    output u1 flushW 
+    output u1 flushW
+    //output u1 flush_all
 );
     u1 ldstall;
     u1 lestall;
+    //u1 csrstall;
+    u1 data_ok;
     always_comb
     begin
         if(op==BEQ || op==JALR) begin
@@ -48,14 +52,18 @@ module stall
         else ldstall=0;
     end
     assign lestall= memtoregM & ((rs1E==dstM) | (rs2E==dstM));
-    assign stallF= stallD | (ireq_valid && ~iresp_data_ok);
-    assign stallD= ldstall | stallE | (memtoregM & memE & ((rs1D == dstM) | (rs2D == dstM)));
-    assign stallE= lestall | stallM;
-    assign stallM= (dreq_valid && ~dresp_data_ok) | stallW;
-    assign stallW= stallE_mult;
-    assign flushF= ireq_valid && ~iresp_data_ok;
-    assign flushD= stallD;
-    assign flushE= stallE;
-    assign flushW = dreq_valid && ~dresp_data_ok;
+    //assign csrstall = flush_csr;
+    assign stallF = stallD | (ireq_valid && ~iresp_data_ok);
+    assign stallD = ldstall | stallE | (memtoregM & memE & ((rs1D == dstM) | (rs2D == dstM)));
+    assign stallE = lestall | stallM;
+    assign stallM = (dreq_valid && ~dresp_data_ok) | stallW;
+    assign stallW = stallE_mult;
+    
+    assign flushF = (ireq_valid && ~iresp_data_ok);
+    assign flushD = stallD;
+    assign flushE = stallE;
+    assign flushW = (dreq_valid && ~dresp_data_ok);
+    
+    //assign flush_all = flush_csr & ~(ireq_valid && ~iresp_data_ok) & ~(dreq_valid && ~dresp_data_ok);
 endmodule
 `endif

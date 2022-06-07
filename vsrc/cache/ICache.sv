@@ -26,7 +26,10 @@ module ICache
 		.cresp
 	);
 	assign iresp = `DRESP_TO_IRESP(dresp, ireq);
-
+	always_comb begin
+		if(ireq.addr == 64'h80006100) $display("~~~x");
+	end
+	
 `else
 
 	dbus_resp_t dresp;

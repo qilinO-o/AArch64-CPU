@@ -13,17 +13,21 @@ module IDEX_reg
     (
     input u1 en,
     input logic clk,rst,clr,
+    //input u1 flush_all,
     input decode_data_t dataD,
     output decode_data_t dataD_nxt
 );
     always_ff@(posedge clk )//or posedge rst)
     begin
-        if(en==1'b1) begin
-            if(rst | clr) dataD_nxt<='0;
-            else dataD_nxt<=dataD;
+        if(rst) begin
+            dataD_nxt<='0;
         end
         else begin
-
+            if(en==1'b1) begin
+                if(clr) dataD_nxt<='0;
+                else dataD_nxt<=dataD;
+            end
+            else begin end
         end
     end
 

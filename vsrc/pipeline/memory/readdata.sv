@@ -60,53 +60,74 @@ module readdata
 						rd = {{56{sign_bit}}, _rd[63-:8]};
 					end
 					default: begin
-						
 					end
 				endcase
 			end
 			MSIZE2: begin
-				unique case(addr[2:1])
-					2'b00: begin
+				unique case(addr)
+					3'b000: begin
 						sign_bit = mem_unsigned ? 1'b0 : _rd[15];
 						rd = {{48{sign_bit}}, _rd[15-:16]};
 					end
-					2'b01: begin
+					3'b010: begin
 						sign_bit = mem_unsigned ? 1'b0 : _rd[31];
 						rd = {{48{sign_bit}}, _rd[31-:16]};
 					end
-					2'b10: begin
+					3'b100: begin
 						sign_bit = mem_unsigned ? 1'b0 : _rd[47];
 						rd = {{48{sign_bit}}, _rd[47-:16]};
 					end
-					2'b11: begin
+					3'b110: begin
 						sign_bit = mem_unsigned ? 1'b0 : _rd[63];
 						rd = {{48{sign_bit}}, _rd[63-:16]};
 					end
 					default: begin
-						
 					end
 				endcase
 			end
 			MSIZE4: begin
-				unique case(addr[2])
-					1'b0: begin
+				unique case(addr)
+					3'b000: begin
 						sign_bit = mem_unsigned ? 1'b0 : _rd[31];
 						rd = {{32{sign_bit}}, _rd[31-:32]};
 					end
-					1'b1: begin
+					3'b100: begin
 						sign_bit = mem_unsigned ? 1'b0 : _rd[63];
 						rd = {{32{sign_bit}}, _rd[63-:32]};
 					end
 					default: begin
-						
 					end
 				endcase
 			end
 			MSIZE8: begin
-				rd = _rd;
+				unique case(addr)
+					3'b000: begin
+						rd = _rd;
+					end
+					default: begin
+					end
+				endcase
+				
 			end
 			default: begin
-				
+			end
+		endcase
+	end
+
+	always_comb begin
+		read_addr_exc = 1'b0;
+		unique case(msize)
+			MSIZE2: begin
+				read_addr_exc = addr[0];
+			end
+			MSIZE4: begin
+				read_addr_exc = addr[1] | addr[0];
+			end
+			MSIZE8: begin
+				read_addr_exc = addr[2] | addr[1] | addr[0];
+			end
+			default: begin
+
 			end
 		endcase
 	end

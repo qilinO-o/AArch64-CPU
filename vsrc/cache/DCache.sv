@@ -192,7 +192,7 @@ module DCache
 
     // CBus driver
     assign creq.valid    = state == ALLOCATE | state == WRITE_BACK | state == SKIP;
-    assign creq.is_write = state == WRITE_BACK | (state == SKIP & dreq.strobe != 8'b0000_0000);
+    assign creq.is_write = state == WRITE_BACK | ((state == SKIP) & (dreq.strobe != 8'b0000_0000));
     assign creq.size     = state == SKIP ? dreq.size : MSIZE8;
     assign creq.strobe   = state == SKIP ? dreq.strobe : 8'b11111111;
     assign creq.len      = state == SKIP ? MLEN1 : MLEN16;
@@ -201,12 +201,13 @@ module DCache
     always_comb
     begin
         creq.addr = '0;
+        data_addr = {index, position, offset};
         dresp.data = ram_rdata;
         creq.data = ram_rdata;
         meta_addr = index;
-        data_addr = {index, position, offset};
         ram_data = '0;
         ram_meta = '0;
+        //if(dreq.addr == 64'h80006100) $display("get: %x %x",{index, position, offset},dresp.data);
         unique case (state)
             FLUSH: begin
                 ram_meta.en = 1'b1;
@@ -260,9 +261,11 @@ module DCache
     // the finite-state-machine of cache state
     always_ff @(posedge clk)
     begin
+        //if(dreq.addr == 64'h80001754) $display("%x",state);
         if (~reset) begin
             unique case (state)
                 FLUSH: begin
+                    //if(dreq.addr == 64'h80001754) $display("in6!!!");
                     state <= IDLE;
                 end
                 IDLE: begin
@@ -272,6 +275,7 @@ module DCache
                         end
                         else begin
                             if(hit) begin
+                                //if(dreq.addr == 64'h80006100) $display("get: %x",dresp.data);
                                 state <= IDLE;
                             end
                             else begin
@@ -287,6 +291,7 @@ module DCache
                         end
                     end
                     else begin
+                        //if(dreq.addr == 64'h80001754) $display("in4!!!");
                         state <= IDLE;
                     end    
                 end 
@@ -306,10 +311,18 @@ module DCache
                 //     end
                 // end
                 ALLOCATE: begin // read new data from mem to cache
+                    //if(dreq.addr >= 64'h80006100) $display("%x %x",offset_cnt,creq.data);
+                    //if(dreq.addr == 64'h80006100) $display("in3!!!");
                     if (cresp.ready) begin
-                        state  <= cresp.last ? COMPARE_TAG : ALLOCATE;
+                        state  <= cresp.last ? IDLE : ALLOCATE;
                         offset_cnt <= offset_cnt + 1;
                     end
+                    else begin
+                        state <= ALLOCATE;
+                        //if(dreq.addr == 64'h80001754) $display("in3!!!");
+                    end 
+                    //if(dreq.addr == 64'h80001754) $display("ram_rdata: %x",ram_rdata);
+                    //if(dreq.addr == 64'h80001754) $display("last ALL %x",state);
                 end
                 WRITE_BACK: begin //write data from cache to mem
                     if (cresp.ready) begin
@@ -319,6 +332,7 @@ module DCache
                 end
                 SKIP: begin
                     if(cresp.last) begin
+                        //if(dreq.addr == 64'h80001754) $display("in2!!!");
                         state <= IDLE;
                     end
                     else begin
@@ -326,9 +340,11 @@ module DCache
                     end
                 end
                 default: begin
+                    //if(dreq.addr == 64'h80001754) $display("in1!!!");
                     state <= IDLE;
                 end
             endcase
+            //if(dreq.addr == 64'h80001754) $display("last: %x",state);
         end 
         else begin
             state <= FLUSH;

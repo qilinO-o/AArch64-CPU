@@ -10,41 +10,54 @@ module pc
     import pipes::*;
     (
     input u1 en,
-	input logic clk, reset,
-	input offset_en, //enable jump offset
-    input u64 offset, //32 bit imm for instr ext
+	input logic clk, reset, flush,
+    input u64 pcselect,
+	input logic branch, //enable jump offset
+    input u64 pcbranch, //32 bit imm for instr ext
     input ibus_resp_t iresp,
-    output addr_t temp_pc,
+    output ibus_req_t ireq,
 	output fetch_data_t dataF
 );
-    addr_t addr;
-    addr_t addr_nxt;
-    always_comb
-    begin
-        if(en==1'b1) begin
-            if(offset_en==1'b1) begin
-                addr_nxt=offset;
-            end
-            else begin
-                addr_nxt=addr+4;
-            end 
-        end
-        else begin
-            addr_nxt=addr;
-        end
-    end
+    addr_t pc;
+    addr_t pc_nxt;
+    
     always_ff@(posedge clk )//, posedge reset)
     begin
         if(reset) begin
-            addr<=64'h8000_0000;
+            pc <= 64'h8000_0000;
         end
-        else if(en) begin
-            addr<=addr_nxt;
+        else if(en | flush) begin
+            pc <= pc_nxt;
         end
     end
-    assign dataF.instr=iresp.data;
-    assign dataF.valid=1;
-    assign dataF.pc=addr;
-    assign temp_pc=addr;
+
+    always_comb begin
+        if(flush) begin
+            pc_nxt = pcselect;
+        end
+        else if(branch) begin
+            pc_nxt = pcbranch;
+        end
+        else begin
+            pc_nxt = pc + 4;
+        end 
+    end
+
+    always_comb begin
+        dataF.except = '0;
+        ireq.valid = 1'b1;
+        if(pc[0] | pc[1]) begin
+            ireq.valid = 1'b0;
+            dataF.except.exception = 1'b1;
+            dataF.except.exception_code = 5'd0;
+        end
+        //if(pc <= 64'h80000750)$display("%x %x",pc,en);
+    end
+
+    assign dataF.instr = iresp.data;
+    assign dataF.valid = ireq.valid;
+    assign dataF.pc = pc;
+    assign ireq.addr = pc;
+    
 endmodule
 `endif

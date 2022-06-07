@@ -24,11 +24,13 @@ module hazard
     //input writeback_data_t dataW,
     input word_t srca,srcb,
     input u1 stallE_mult,
+    //input u1 flush_csr,
     output hazard_control_t hazard_ctrl,
     output word_t srca_hE,
     output word_t srcb_hE,
     output word_t srca_hD,
     output word_t srcb_hD
+    //output u1 flush_all
 );
     forward forward(
         op,
@@ -77,6 +79,7 @@ module hazard
         dataE.memwrite | dataE.memtoreg,
         dataE.memtoreg,
         stallE_mult,
+        //flush_csr,
         hazard_ctrl.stallF,
 	    hazard_ctrl.stallD,
         hazard_ctrl.stallE,
@@ -86,6 +89,7 @@ module hazard
         hazard_ctrl.flushD,
 	    hazard_ctrl.flushE,
         hazard_ctrl.flushW
+        //flush_all
     );
 
 endmodule
